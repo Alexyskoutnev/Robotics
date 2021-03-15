@@ -234,7 +234,7 @@ class RobotArm:
             delta_q = np.matmul(J_inv, delta_p)
             #change in joint angle
             q = q + delta_q
-            #current position of end effector in terms of translation matrix now
+            #currenkt position of end effector in terms of translation matrix now
             T_sb = self.Forward_Kinmatics_Tranformation(q)
             #current position in x-y-z
             p_effector = self.se3ToVec(T_sb)[3:6]
