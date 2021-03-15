@@ -262,7 +262,6 @@ class RobotArm:
             delta_p = abs(self.se3ToVec(Tsb) - self.se3ToVec(T))
             err_d = np.linalg.norm(delta_p)
             while i < maxiterations and err_d > .01:
-                grad = learning_rate * np.gradient(self.se3ToVec(T) - self.se3ToVec(Tsb))
                 thetalist = thetalist + np.dot(np.linalg.pinv(self.Jacobian_S_Frame(thetalist)), Vs)
                 i = i + 1
                 Tsb = self.Forward_Kinmatics_Tranformation(thetalist)

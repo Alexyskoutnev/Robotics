@@ -13,7 +13,7 @@ planeId = p.loadURDF("simpleplane.urdf")
 FixedBase = True #if fixed no plane is imported
 startPos = [0,0,0]
 startOrientation = p.getQuaternionFromEuler([0,0,0])
-boxId = p.loadURDF("three_link_manipulator.urdf",startPos, startOrientation, useFixedBase = 1)
+boxId = p.loadURDF("three_link_manipulator.urdf", startPos, startOrientation, useFixedBase = 1)
 
 number_of_joints = p.getNumJoints(boxId)
 for joint_number in range(number_of_joints):
@@ -65,46 +65,38 @@ thetalist0 = [0,0,0]
 x_pos = three_link.position_update(T, theta_0= thetalist0, learning_rate= .5)
 print(x_pos)
 
-for i in range (50000):
-    pass
-    # J = robot.Jacobain_S_Frame(S_list, thetalist0)
-    # print(J)
-    # X = np.array([0, -1, 1]).T
-    #Q_dot = robot.Updated_Joint_Rate(T, thetalist0)
-    #Q_dot = robot.IKinSpace(T, thetalist0, ev = .1, eomg= .1)
-    #print(Q_dot, "q")
-    #thetalist0 = .5*(Q_dot) + thetalist0
-    # thetalist0 = thetalist0 + 0.001*robot.update(T, thetalist0)
-    # print(thetalist0)
-    # p.setJointMotorControl2(boxId, 0, p.VELOCITY_CONTROL, targetVelocity=thetalist0[0])
-    # p.setJointMotorControl2(boxId, 1, p.VELOCITY_CONTROL, targetVelocity=thetalist0[1])
-    # p.setJointMotorControl2(boxId, 2, p.VELOCITY_CONTROL, targetVelocity=thetalist0[2])
-    # thetalist0 = robot.InverseKinematics_NRM()
-    #p.stepSimulation()
-    #time.sleep(.1)
-for i in range(100):
-        p.setJointMotorControl2(boxId, 0, p.POSITION_CONTROL, targetPosition=x_pos[0])
-        p.setJointMotorControl2(boxId, 1, p.POSITION_CONTROL, targetPosition=x_pos[1])
-        p.setJointMotorControl2(boxId, 2, p.POSITION_CONTROL, targetPosition=x_pos[2])
-        p.stepSimulation()
-        time.sleep(1. / 24.)
+q = thetalist0
+current_pos = three_link.Forward_Kinmatics_Tranformation(q)
+Vs = np.dot(three_link.Adjoint(current_pos), three_link.se3ToVec(three_link.MatrixLog6(np.dot(three_link.TransInv(current_pos), T))))
+Vtarget = np.dot(three_link.Adjoint(T), three_link.se3ToVec(three_link.MatrixLog6(np.dot(three_link.TransInv(current_pos), T))))
+diff = np.subtract(Vtarget, Vs)
+J = three_link.Jacobian_S_Frame(q)
+for i in range (5000):
+    print(q)
+    q = q + np.dot(np.linalg.pinv(J), Vs)
+    p.setJointMotorControl2(boxId, 0, p.VELOCITY_CONTROL, targetVelocity=11)
+    p.setJointMotorControl2(boxId, 1, p.VELOCITY_CONTROL, targetVelocity=5)
+    p.setJointMotorControl2(boxId, 2, p.VELOCITY_CONTROL, targetVelocity=.5)
+    # current_pos = three_link.Forward_Kinmatics_Tranformation(q)
+    # Vs = np.dot(three_link.Adjoint(current_pos), three_link.se3ToVec(three_link.MatrixLog6(np.dot(three_link.TransInv(current_pos), T))))
+    # Vs = np.dot(three_link.Adjoint(current_pos), three_link.se3ToVec(three_link.MatrixLog6(np.dot(three_link.TransInv(current_pos), T))))
+    # diff = np.subtract(Vtarget, Vs)
+    # J = three_link.Jacobian_S_Frame(q)
+    # if (np.linalg.norm(diff) < .1):
+    #     q = np.zeros(0, 3)
+    # else:
+    #     pass
+    time.sleep(.1)
 
-# angle = p.addUserDebugParameter('rotate', -0.5, 0.5, 0)
-# throttley = p.addUserDebugParameter('y-direction', -5, 5, 0)
-# throttlex = p.addUserDebugParameter('x-direction', -5, 5, 0)
-#
-# while True:
-#     user_angle = p.readUserDebugParameter(angle)
-#     user_throttley = p.readUserDebugParameter(throttley)
-#     user_throttlex = p.readUserDebugParameter(throttlex)
-#     p.setJointMotorControl2(boxId, 0, p.VELOCITY_CONTROL, targetVelocity=user_angle)
-#     p.setJointMotorControl2(boxId, 1, p.VELOCITY_CONTROL, targetVelocity=user_throttley)
-#     p.setJointMotorControl2(boxId, 2, p.VELOCITY_CONTROL, targetVelocity=user_throttlex)
-#     p.stepSimulation()
 
-# p.setJointMotorControl2(boxId, 0, p.POSITION_CONTROL, targetPosition = 0)
-# p.setJointMotorControl2(boxId, 1, p.POSITION_CONTROL, targetPosition = np.pi/4)
-# p.setJointMotorControl2(boxId, 2, p.POSITION_CONTROL, targetPosition = np.pi/4)
+# #Displaying the position of the robot using inverse kinematics
+# for i in range(100):
+#         p.setJointMotorControl2(boxId, 0, p.POSITION_CONTROL, targetPosition=x_pos[0])
+#         p.setJointMotorControl2(boxId, 1, p.POSITION_CONTROL, targetPosition=x_pos[1])
+#         p.setJointMotorControl2(boxId, 2, p.POSITION_CONTROL, targetPosition=x_pos[2])
+#         p.stepSimulation()
+#         time.sleep(1. / 24.)
+
 
 
 
