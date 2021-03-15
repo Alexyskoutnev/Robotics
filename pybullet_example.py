@@ -22,7 +22,7 @@ for joint_number in range(number_of_joints):
     print(info[0], ": ", info[1])
 
 
-# #Personal Robot
+# #Personal Robot (basic_robot.urdf)
 # #lengths
 # l1 = .5
 # l2 = .5
@@ -100,7 +100,7 @@ for i in range(1000):
 
 
 
-#Finding orientation and position of the end effectote
+#Finding orientation and position of the end effector
 cubePos, cubeOrn = p.getBasePositionAndOrientation(boxId)
 position_end_effector = p.getLinkState(boxId, 3, computeForwardKinematics = 1)
 print("=============End Effector Info==============")
