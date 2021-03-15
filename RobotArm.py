@@ -168,38 +168,29 @@ class RobotArm:
             J[:, i] = np.dot(self.Adjoint(T), np.array(self.s[:, i]))
         return J
 
-    def InverseKinematics_NRM(self, T, theta_0):
-        print("work")
-        i = 0
-        max_i = 100
-        T_sb = self.Forward_Kinmatics_Tranformation(theta_0)
-        T_Inv = self.TransInv(T_sb)
-        V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(T_Inv, T))))
-        end_pos = self.se3ToVec(T)
-        current_pos = self.se3ToVec(T_sb)
-        theta_update = theta_0.copy()
-        err_l = np.linalg.norm([V_s[3], V_s[4], V_s[5]])
-        err_a = np.linalg.norm([V_s[0], V_s[1], V_s[2]])
-        delta_p = self.se3ToVec(T_sb) - self.se3ToVec(T)
-        while ((np.linalg.norm([delta_p]) < 0.01) or i < max_i or ((err_l > .01 and err_a > .001))):
-            theta_dot_update = theta_update + np.dot(np.linalg.pinv(self.Jacobain_S_Frame(theta_update)), (V_s))
-            T_sb = self.Forward_Kinmatics_Tranformation(theta_update)
-            i += 1
-            V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(self.TransInv(T), T))))
-            current_pos = self.se3ToVec(T_sb)
-            delta_p = self.se3ToVec(T_sb) - self.se3ToVec(T)
-            err_l = np.linalg.norm([V_s[3], V_s[4], V_s[5]])
-            err_a = np.linalg.norm([V_s[0], V_s[1], V_s[2]])
-        return theta_update
-
-    def update_velocity(self, T, theta_0):
-        print("work")
-        T_sb = self.Forward_Kinmatics_Tranformation(theta_0)
-        T_Inv = self.TransInv(T_sb)
-        V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(T_Inv, T))))
-        theta_update = theta_0.copy()
-        theta_dot_update = theta_update + np.dot(np.linalg.pinv(self.Jacobian_S_Frame(theta_update)), (V_s))
-        return theta_update
+    # def InverseKinematics_NRM(self, T, theta_0):
+    #     print("work")
+    #     i = 0
+    #     max_i = 100
+    #     T_sb = self.Forward_Kinmatics_Tranformation(theta_0)
+    #     T_Inv = self.TransInv(T_sb)
+    #     V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(T_Inv, T))))
+    #     end_pos = self.se3ToVec(T)
+    #     current_pos = self.se3ToVec(T_sb)
+    #     theta_update = theta_0.copy()
+    #     err_l = np.linalg.norm([V_s[3], V_s[4], V_s[5]])
+    #     err_a = np.linalg.norm([V_s[0], V_s[1], V_s[2]])
+    #     delta_p = self.se3ToVec(T_sb) - self.se3ToVec(T)
+    #     while ((np.linalg.norm([delta_p]) < 0.01) or i < max_i or ((err_l > .01 and err_a > .001))):
+    #         theta_dot_update = theta_update + np.dot(np.linalg.pinv(self.Jacobain_S_Frame(theta_update)), (V_s))
+    #         T_sb = self.Forward_Kinmatics_Tranformation(theta_update)
+    #         i += 1
+    #         V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(self.TransInv(T), T))))
+    #         current_pos = self.se3ToVec(T_sb)
+    #         delta_p = self.se3ToVec(T_sb) - self.se3ToVec(T)
+    #         err_l = np.linalg.norm([V_s[3], V_s[4], V_s[5]])
+    #         err_a = np.linalg.norm([V_s[0], V_s[1], V_s[2]])
+    #     return theta_update
 
     def position_update(self, T, theta_0, learning_rate):
         """
@@ -251,14 +242,11 @@ class RobotArm:
             :return: Predicted theta @ Target Transformation Matrix
             """
             #Initial Theta
-            learning_rate = .001
-            thetalist = self.Forward_Kinmatics_Tranformation()
             thetalist = np.array(thetalist0).copy()
             i = 0
             maxiterations = 20
             Tsb = self.Forward_Kinmatics_Tranformation(thetalist)
             Vs = np.dot(self.Adjoint(Tsb), self.se3ToVec(self.MatrixLog6(np.dot(self.TransInv(Tsb), T))))
-            Vtarget = np.dot(self.Adjoint(T), self.se3ToVec(self.MatrixLog6(np.dot(self.TransInv(Tsb), T))))
             delta_p = abs(self.se3ToVec(Tsb) - self.se3ToVec(T))
             err_d = np.linalg.norm(delta_p)
             while i < maxiterations and err_d > .01:
