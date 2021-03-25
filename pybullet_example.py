@@ -62,8 +62,13 @@ T = np.array([[1, 0,  0,    1.5],
 
 #Initializing the robot with some parameters
 three_link = RobotArm(M_arm = M, slist = S_list)
-thetalist0 = [0,0,0]
-x_pos = three_link.position_update(T, theta_0= thetalist0, learning_rate= .5)
+# thetalist0 = [0,0,0]
+Current_Joint_Par = [.2,.1,0]
+Target_Position = [1.1,.5, 0]
+
+x_pos = three_link.solIK(Current_Joint_Par, Target_Position)
+print(x_pos, "joint final")
+
 
 # #trying to use velocity just to control the robot, (doesn't work yet)
 # q = thetalist0

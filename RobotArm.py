@@ -7,6 +7,9 @@ class RobotArm:
         self.M = np.array(M_arm)
         self.s = np.array(slist)
         self.N_joint = slist.shape[1]
+        self.parMaxIteration = 1000
+        self.parSqrErrBound = .1
+        self.GradientGain = .1
 
     def VecToso3(self, omg):
         """
@@ -234,6 +237,41 @@ class RobotArm:
             i += 1
         return q
 
+    def calPosErr(self, PosCurVec, PosRefVec):
+        err_x = np.linalg.norm([PosCurVec[0], PosRefVec[0]])
+        err_y = np.linalg.norm([PosCurVec[1], PosRefVec[1]])
+        err_z = np.linalg.norm([PosCurVec[2], PosRefVec[2]])
+        return np.array([err_x, err_y, err_y])
+
+    def calAngErr(self, PosCurVec, PosRefVec):
+        err_theta_x = np.linalg.norm([PosCurVec[0], PosRefVec[0]])
+        err_theta_y = np.linalg.norm([PosCurVec[1], PosRefVec[1]])
+        err_theta_z = np.linalg.norm([PosCurVec[2], PosRefVec[2]])
+        return np.array([err_theta_x, err_theta_y, err_theta_z])
+
+    def solIK(self, JointCur, PosRef):
+        vecJointCur = np.array(JointCur)
+        T_PosRef = self.VecTose3(np.concatenate((np.array([1, 1, 1]), np.array(PosRef))))
+        T_PosRef_Inv = self.TransInv(T_PosRef)
+        V_PosRef = self.se3ToVec(T_PosRef)
+        for idx in range(0, self.parMaxIteration):
+            J = self.Jacobian_S_Frame(vecJointCur)
+            T_PosCur = self.Forward_Kinmatics_Tranformation(vecJointCur)
+            T_PosCur_Inv = self.TransInv(T_PosCur)
+            V_PosCur = self.se3ToVec(T_PosCur)
+            vecPosErr = np.concatenate((self.calPosErr(V_PosCur[0:3], V_PosRef[0:3]), self.calAngErr(V_PosCur[3:6], V_PosRef[3:6])))
+            if np.sum(vecPosErr[0:3] ** 2) + 1000 * np.sum(vecPosErr[3:6] ** 2) < self.parSqrErrBound:
+                return vecJointCur.tolist()
+            else:
+                vecGradient = np.gradient(V_PosCur) * vecPosErr
+                #vecGradient = self.parGradientGain * vecPosErr
+                try:
+                    vecJointDif = np.dot(np.linalg.pinv(J), vecGradient)
+                except:
+                    vecJointDif = np.zeros(7)
+                vecJointCur = vecJointCur + vecJointDif
+        return vecJointCur
+
     def Inverse_Kinematics(self, T, thetalist0):
             """
             Computes the robot's Inverse Kinematics using Newton Raphson Method to find the predicted joint value at a given position
@@ -257,3 +295,16 @@ class RobotArm:
                 delta_p = abs(self.se3ToVec(Tsb) - self.se3ToVec(T))
                 err_d = np.linalg.norm(delta_p)
             return thetalist
+
+M = np.array([[1, 0, 0, 1.5],
+              [0, 1,  0, 0],
+              [0, 0, 1, 0],
+              [0, 0,  0, 1]])
+S_list = np.array([[0,0,1,0,-1,0], [0,0,1,0,-2,0], [0,0,1,0,-3,0]]).T
+robot = RobotArm(M_arm = M, slist = S_list)
+Current_Joint_Par = [0,1,.5]
+Target_Position = [1,1, 1]
+Joint_vec = robot.solIK(Current_Joint_Par, Target_Position)
+print(Joint_vec)
+
+#print(np.concatenate((np.array([1, 1, 1]), np.array(Target_Position))))
