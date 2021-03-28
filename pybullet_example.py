@@ -4,6 +4,7 @@ import pybullet_data
 import math
 import numpy as np
 from Robot.RobotArm import RobotArm
+from Robot.Robot_3_linked import Robot
 
 
 #Pybullet Initialization
@@ -13,7 +14,7 @@ planeId = p.loadURDF("simpleplane.urdf")
 FixedBase = True #if fixed no plane is imported
 startPos = [0,0,0]
 startOrientation = p.getQuaternionFromEuler([0,0,0])
-boxId = p.loadURDF("Robot/three_link_manipulator.urdf", startPos, startOrientation, useFixedBase = 1)
+boxId = p.loadURDF("basic_robot.urdf", startPos, startOrientation, useFixedBase = 1)
 
 #get the infomation of each joint
 number_of_joints = p.getNumJoints(boxId)
@@ -46,28 +47,39 @@ for joint_number in range(number_of_joints):
 #               [0, 1,  0,     .5],
 #               [0, 0, 1,      .5],
 #               [0, 0,  0,      1]])
+#
+# #Three_Link_manipulator
+# M = np.array([[1, 0, 0, 3],
+#               [0, 1,  0, 0],
+#               [0, 0, 1, 0],
+#               [0, 0,  0,K 1]])
+# S_list = np.array([[0,0,1,0,-1,0], [0,0,1,0,-2,0], [0,0,1,0,-3,0]]).T
+#
+# #target
+# T = np.array([[1, 0,  0,    .1],
+#                [0, 1,  0,      1.5],
+#                [0, 0, 1,      0],
+#                [0, 0,  0,      1]])
+#
+# #Initializing the robot with some parameters
+# three_link = RobotArm(S_list, M)
+# # thetalist0 = [0,0,0]
+# Current_Joint_Par = [0,0,0]
+# Target_Position = [0, 0, 0, 1, 2, 0]
+#
+# #x_pos = three_link.position_update(T, Current_Joint_Par, learning_rate= .5)
+# #x_pos = three_link.solIK(Current_Joint_Par, Target_Position)
+# x_pos = three_link.InverseKinematics_NRM(T, Current_Joint_Par, eomg= .1, ev= .1)
+# print(x_pos, "joint final")
 
-#Three_Link_manipulator
-M = np.array([[1, 0, 0, 1.5],
-              [0, 1,  0, 0],
-              [0, 0, 1, 0],
-              [0, 0,  0, 1]])
-S_list = np.array([[0,0,1,0,-1,0], [0,0,1,0,-2,0], [0,0,1,0,-3,0]]).T
+s_list = np.array([[0, 0, 1], [0, 1, 0], [1,0,0]])
+t = np.array([[0,0,0], [0,0,0.5], [0, 0, 0.5]])
+robot = Robot(s_list, t)
+Current_Joint_Par = [0,0,0]
+Target_Position = [-1.5,1.5,.5]
+x_pos =robot.solIK(Current_Joint_Par, Target_Position)
+print(x_pos)
 
-#target
-T = np.array([[1, 0,  0,    1.5],
-               [0, 1,  0,      -2.7],
-               [0, 0, 1,      0],
-               [0, 0,  0,      1]])
-
-#Initializing the robot with some parameters
-three_link = RobotArm(M_arm = M, slist = S_list)
-# thetalist0 = [0,0,0]
-Current_Joint_Par = [.2,.1,0]
-Target_Position = [1.1,.5, 0]
-
-x_pos = three_link.solIK(Current_Joint_Par, Target_Position)
-print(x_pos, "joint final")
 
 
 # #trying to use velocity just to control the robot, (doesn't work yet)
@@ -96,7 +108,7 @@ print(x_pos, "joint final")
 
 
 #Displaying the position of the robot using inverse kinematics
-for i in range(1000):
+for i in range(100):
         p.setJointMotorControl2(boxId, 0, p.POSITION_CONTROL, targetPosition=x_pos[0])
         p.setJointMotorControl2(boxId, 1, p.POSITION_CONTROL, targetPosition=x_pos[1])
         p.setJointMotorControl2(boxId, 2, p.POSITION_CONTROL, targetPosition=x_pos[2])
@@ -107,7 +119,7 @@ for i in range(1000):
 
 #Finding orientation and position of the end effector
 cubePos, cubeOrn = p.getBasePositionAndOrientation(boxId)
-position_end_effector = p.getLinkState(boxId, 3, computeForwardKinematics = 1)
+position_end_effector = p.getLinkState(boxId,  4, computeForwardKinematics = 1)
 print("=============End Effector Info==============")
 print("World Position :", position_end_effector[0])
 print("World Orientation :", position_end_effector[1])

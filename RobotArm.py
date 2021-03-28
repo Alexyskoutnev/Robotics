@@ -7,9 +7,9 @@ class RobotArm:
         self.M = np.array(M_arm)
         self.s = np.array(slist)
         self.N_joint = slist.shape[1]
-        self.parMaxIteration = 1000
+        self.parMaxIteration = 100
         self.parSqrErrBound = .1
-        self.GradientGain = .1
+        self.GradientGain = .3
 
     def VecToso3(self, omg):
         """
@@ -171,29 +171,23 @@ class RobotArm:
             J[:, i] = np.dot(self.Adjoint(T), np.array(self.s[:, i]))
         return J
 
-    # def InverseKinematics_NRM(self, T, theta_0):
-    #     print("work")
-    #     i = 0
-    #     max_i = 100
-    #     T_sb = self.Forward_Kinmatics_Tranformation(theta_0)
-    #     T_Inv = self.TransInv(T_sb)
-    #     V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(T_Inv, T))))
-    #     end_pos = self.se3ToVec(T)
-    #     current_pos = self.se3ToVec(T_sb)
-    #     theta_update = theta_0.copy()
-    #     err_l = np.linalg.norm([V_s[3], V_s[4], V_s[5]])
-    #     err_a = np.linalg.norm([V_s[0], V_s[1], V_s[2]])
-    #     delta_p = self.se3ToVec(T_sb) - self.se3ToVec(T)
-    #     while ((np.linalg.norm([delta_p]) < 0.01) or i < max_i or ((err_l > .01 and err_a > .001))):
-    #         theta_dot_update = theta_update + np.dot(np.linalg.pinv(self.Jacobain_S_Frame(theta_update)), (V_s))
-    #         T_sb = self.Forward_Kinmatics_Tranformation(theta_update)
-    #         i += 1
-    #         V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(self.TransInv(T), T))))
-    #         current_pos = self.se3ToVec(T_sb)
-    #         delta_p = self.se3ToVec(T_sb) - self.se3ToVec(T)
-    #         err_l = np.linalg.norm([V_s[3], V_s[4], V_s[5]])
-    #         err_a = np.linalg.norm([V_s[0], V_s[1], V_s[2]])
-    #     return theta_update
+    def InverseKinematics_NRM(self, T, theta_0, eomg, ev):
+        i = 0
+        max_i = 20
+        T_sb = self.Forward_Kinmatics_Tranformation(theta_0)
+        T_Inv = self.TransInv(T_sb)
+        Vs = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(T_Inv, T))))
+        thetalist = np.array(theta_0.copy())
+        err = np.linalg.norm([Vs[0], Vs[1], Vs[2]]) > eomg or np.linalg.norm([Vs[3], Vs[4], Vs[5]]) > ev
+        while err and i < max_i:
+            thetalist = thetalist + np.dot(np.linalg.pinv(self.Jacobian_S_Frame(thetalist)), Vs)
+            T_sb = self.Forward_Kinmatics_Tranformation(thetalist)
+            i += 1
+            V_s = np.dot(self.Adjoint(T_sb), self.se3ToVec(self.MatrixLog6(np.dot(self.TransInv(T_sb), T))))
+            err = np.linalg.norm([Vs[0], Vs[1], Vs[2]]) > eomg or np.linalg.norm([Vs[3], Vs[4], Vs[5]]) > ev
+            print(np.linalg.norm([Vs[0], Vs[1], Vs[2]]) )
+            print(np.linalg.norm([Vs[3], Vs[4], Vs[5]]))
+        return thetalist
 
     def position_update(self, T, theta_0, learning_rate):
         """
@@ -213,17 +207,21 @@ class RobotArm:
         #goal position in x-y-z
         p_goal = self.se3ToVec(T)[3:6]
         #distance between goal and end effector
-        delta_p_err = abs(self.se3ToVec(T_sb)[3:6] - self.se3ToVec(T)[3:6])
+        #delta_p_err = abs(self.se3ToVec(T_sb)[3:6] - self.se3ToVec(T)[3:6])
         #maximum number of steps in while loop
-        max_iteration = 100
+        max_iteration = 25
+        PosCur = self.se3ToVec(self.Forward_Kinmatics_Tranformation(theta_0))
+        PosRef = self.se3ToVec(T)
+        vecPosErr = self.calPosErr(PosCur[3:6], PosRef[3:6])
         #While end effect is not within .1 distance of the goal
-        while(np.linalg.norm(delta_p_err) > .1 and max_iteration > i):
+        print(np.linalg.norm(vecPosErr), "error")
+        while(np.linalg.norm(vecPosErr) > self.parSqrErrBound and self.parMaxIteration > i):
             #Computation of linear velocity Jacobian
             J = self.Jacobian_S_Frame(q)[3:6]
             #inverse of velocity Jacobian
             J_inv = np.linalg.pinv(J)
             #Gradient
-            delta_p = learning_rate*(p_goal - p_effector)
+            delta_p = learning_rate*vecPosErr
             #Using Jacobain to find joint angle gradient
             delta_q = np.matmul(J_inv, delta_p)
             #change in joint angle
@@ -233,44 +231,67 @@ class RobotArm:
             #current position in x-y-z
             p_effector = self.se3ToVec(T_sb)[3:6]
             #distance between end effector and goal
-            delta_p_err = abs(self.se3ToVec(T_sb)[3:6] - self.se3ToVec(T)[3:6])
+            vecPosErr = self.calPosErr(PosCur[3:6], PosRef[3:6])
             i += 1
         return q
 
     def calPosErr(self, PosCurVec, PosRefVec):
-        err_x = np.linalg.norm([PosCurVec[0], PosRefVec[0]])
-        err_y = np.linalg.norm([PosCurVec[1], PosRefVec[1]])
-        err_z = np.linalg.norm([PosCurVec[2], PosRefVec[2]])
-        return np.array([err_x, err_y, err_y])
+        err_x = PosCurVec[0] - PosRefVec[0]
+        err_y = PosCurVec[1] - PosRefVec[1]
+        err_z = PosCurVec[2] - PosRefVec[2]
+        return np.array([err_x, err_y, err_z])
 
     def calAngErr(self, PosCurVec, PosRefVec):
-        err_theta_x = np.linalg.norm([PosCurVec[0], PosRefVec[0]])
-        err_theta_y = np.linalg.norm([PosCurVec[1], PosRefVec[1]])
-        err_theta_z = np.linalg.norm([PosCurVec[2], PosRefVec[2]])
+        err_theta_x = PosCurVec[0] - PosRefVec[0]
+        err_theta_y = PosCurVec[1] - PosRefVec[1]
+        err_theta_z = PosCurVec[2] - PosRefVec[2]
         return np.array([err_theta_x, err_theta_y, err_theta_z])
 
     def solIK(self, JointCur, PosRef):
         vecJointCur = np.array(JointCur)
-        T_PosRef = self.VecTose3(np.concatenate((np.array([1, 1, 1]), np.array(PosRef))))
-        T_PosRef_Inv = self.TransInv(T_PosRef)
-        V_PosRef = self.se3ToVec(T_PosRef)
         for idx in range(0, self.parMaxIteration):
             J = self.Jacobian_S_Frame(vecJointCur)
-            T_PosCur = self.Forward_Kinmatics_Tranformation(vecJointCur)
-            T_PosCur_Inv = self.TransInv(T_PosCur)
-            V_PosCur = self.se3ToVec(T_PosCur)
-            vecPosErr = np.concatenate((self.calPosErr(V_PosCur[0:3], V_PosRef[0:3]), self.calAngErr(V_PosCur[3:6], V_PosRef[3:6])))
-            if np.sum(vecPosErr[0:3] ** 2) + 1000 * np.sum(vecPosErr[3:6] ** 2) < self.parSqrErrBound:
+            T_sb = self.Forward_Kinmatics_Tranformation(vecJointCur)
+            PosCur = self.se3ToVec(self.Forward_Kinmatics_Tranformation(vecJointCur))
+            vecPosErr = np.concatenate((self.calAngErr(PosCur[0:3], PosRef[0:3]), self.calPosErr(PosCur[3:6], PosRef[3:6])))
+            if np.sum(vecPosErr[3:6] ** 2) < self.parSqrErrBound:
                 return vecJointCur.tolist()
             else:
-                vecGradient = np.gradient(V_PosCur) * vecPosErr
-                #vecGradient = self.parGradientGain * vecPosErr
+                #vecGradient = np.gradient(V_PosCur) * vecPosErr
+                vecGradient = self.GradientGain * vecPosErr
                 try:
                     vecJointDif = np.dot(np.linalg.pinv(J), vecGradient)
                 except:
                     vecJointDif = np.zeros(7)
                 vecJointCur = vecJointCur + vecJointDif
         return vecJointCur
+
+
+
+    # def solIK1(self, raJointCur, raPosRef):
+    #     vecJointCur = np.array(raJointCur)
+    #     for idx in range(0, self.parMaxItration):
+    #         matJac, raPosCur = self.calJac(vecJointCur.tolist())
+    #         vecPosErr = np.array(calPosErr(raPosCur[0:3], raPosRef[0:3]) + calAngErr(raPosCur[3:6], raPosRef[3:6]))
+    #         if np.sum(vecPosErr[0:3] ** 2) + 1000 * np.sum(vecPosErr[3:6] ** 2) < self.parSqrErrBound:
+    #             return vecJointCur.tolist()
+    #         else:
+    #             vecGradient = self.parGradientGain * vecPosErr
+    #             try:
+    #                 vecJointDif = np.dot(np.linalg.pinv(matJac), vecGradient)
+    #             except:
+    #                 vecJointDif = np.zeros(7)
+    #             vecJointCur = vecJointCur + vecJointDif
+    #     return False
+
+    def solRP(self, raJointCur, raVelEE):
+        matJac, raPosCur = self.calJac(raJointCur)
+        vecVelEE = np.array(raVelEE)
+        try:
+            vecJointDif = np.dot(np.linalg.pinv(matJac), vecVelEE)
+        except:
+            vecJointDif = np.zeros(7)
+        return vecJointDif
 
     def Inverse_Kinematics(self, T, thetalist0):
             """
@@ -296,15 +317,54 @@ class RobotArm:
                 err_d = np.linalg.norm(delta_p)
             return thetalist
 
-M = np.array([[1, 0, 0, 1.5],
-              [0, 1,  0, 0],
-              [0, 0, 1, 0],
-              [0, 0,  0, 1]])
-S_list = np.array([[0,0,1,0,-1,0], [0,0,1,0,-2,0], [0,0,1,0,-3,0]]).T
-robot = RobotArm(M_arm = M, slist = S_list)
-Current_Joint_Par = [0,1,.5]
-Target_Position = [1,1, 1]
-Joint_vec = robot.solIK(Current_Joint_Par, Target_Position)
-print(Joint_vec)
+    # def runCtlrP2P(self):
+    #
+    #     global flagChangedArm
+    #
+    #     if flagChangedArm:
+    #
+    #         flagChangedArm = False
+    #         raJointCur = self.model.getCurrentArmJoints(robot.POSITION)
+    #         raJointGoal = self.ik.solIK(raJointCur, raCmdArm)
+    #
+    #         if raJointGoal:
+    #             self.trjJointRefP2P = self.ik.genTrj(raJointCur, raJointGoal, valTimeStep=self.timeStep,
+    #                                                  lenTrj=self.goalP2P)
+    #             self.countP2P = 0
+    #
+    #     if not self.countP2P == self.goalP2P - 1:
+    #         self.countP2P += 1
+    #
+    #     self.model.setTargetArmJoints(robot.POSITION, self.trjJointRefP2P[self.countP2P])
+    #
+    #     return True
+
+Slist = np.array([[0, 0,  1,  4, 0,    0],
+                          [0, 0,  0,  0, 1,    0],
+                          [0, 0, -1, -6, 0, -0.1]]).T
+M = np.array([[-1, 0,  0, 0],
+                      [ 0, 1,  0, 6],
+                      [ 0, 0, -1, 2],
+                      [ 0, 0,  0, 1]])
+T = np.array([[0, 1,  0,     -5],
+                      [1, 0,  0,      4],
+                      [0, 0, -1, 1.6858],
+                      [0, 0,  0,      1]])
+thetalist0 = np.array([1.5, 2.5, 3])
+eomg = 0.01
+ev = 0.001
+robot = RobotArm(M_arm = M, slist = Slist)
+print(robot.position_update(T, theta_0= thetalist0, learning_rate= .1), "wrong")
+
+# M = np.array([[1, 0, 0, 1.5],
+#               [0, 1,  0, 0],
+#               [0, 0, 1, 0],
+#               [0, 0,  0, 1]])
+# S_list = np.array([[0,0,1,0,-1,0], [0,0,1,0,-2,0], [0,0,1,0,-3,0]]).T
+# robot = RobotArm(M_arm = M, slist = S_list)
+# Current_Joint_Par = [0,1,.5]
+# Target_Position = [1,1, 1]
+# Joint_vec = robot.solIK(Current_Joint_Par, Target_Position)
+# print(Joint_vec)
 
 #print(np.concatenate((np.array([1, 1, 1]), np.array(Target_Position))))
