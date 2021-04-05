@@ -76,7 +76,7 @@ s_list = np.array([[0, 0, 1], [0, 1, 0], [1,0,0]])
 t = np.array([[0,0,0], [0,0,0.5], [0, 0, 0.5]])
 robot = Robot(s_list, t)
 Current_Joint_Par = [0,0,0]
-Target_Position = [-1.5,1.5,.5]
+Target_Position = [0.1,0,2]
 x_pos =robot.solIK(Current_Joint_Par, Target_Position)
 print(x_pos)
 
@@ -108,7 +108,7 @@ print(x_pos)
 
 
 #Displaying the position of the robot using inverse kinematics
-for i in range(100):
+for i in range(1000):
         p.setJointMotorControl2(boxId, 0, p.POSITION_CONTROL, targetPosition=x_pos[0])
         p.setJointMotorControl2(boxId, 1, p.POSITION_CONTROL, targetPosition=x_pos[1])
         p.setJointMotorControl2(boxId, 2, p.POSITION_CONTROL, targetPosition=x_pos[2])
